@@ -37,7 +37,7 @@ sub _start {
 
 	$self->{socket_factory} = POE::Wheel::SocketFactory->new(
 		BindAddress => "127.0.0.1",
-		BindPort => '14401',
+		BindPort => $self->{conf}->{roles}->{console}->{port} || 10041,
 		SuccessEvent => 'socket_new',
 		FailureEvent => 'factory_fail',
 		Reuse => 'on',

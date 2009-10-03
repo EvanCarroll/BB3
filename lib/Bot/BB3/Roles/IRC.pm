@@ -88,6 +88,8 @@ sub new {
 				channel_list
 				stop_talking
 				start_talking
+
+				comfuckpong
 				/
 			]
 		],
@@ -107,6 +109,15 @@ sub _build_ignore_hash {
 #------------------------------------------------------------------------------
 # PUBLIC METHODS
 #------------------------------------------------------------------------------
+sub comfuckpong
+{
+  my ($sender, $kernel, $heap) = @_[SENDER, KERNEL, HEAP];
+
+  my $d = $heap->{irc}->server_name();
+  $heap->{irc}->yield( quote => "PONG $d\n");
+  $kernel->delay_add(comfuckpong => 50);
+}
+
 sub get_bot_conf {
 	my( $self, $poco_irc ) = @_;
 	my $id = ( ref $poco_irc ) ? $poco_irc->session_id : $poco_irc;
@@ -303,7 +314,8 @@ sub _said {
 
 	$said->{by_root} = ( $said->{ sender_raw } =~ $root_mask );
 	$said->{by_chan_op} = $pci->is_channel_operator( $said->{channel}, $said->{name} );
-	#--------------------------
+	warn Data::Dumper->Dump([[$pci->nick_channels($said->{name})]], ["NICK_CHANS"]);
+	$said->{in_my_chan} = ($pci->nick_channels($said->{name})) ? 1 : 0;
 	
 	return $said;
 }
@@ -368,6 +380,8 @@ sub irc_001 {
 	}
 	HACKEND:
 	# END HACK
+
+	$kernel->delay_add(comfuck=>50);
 	
 	# May be an array ref.
 	for( ref $channels ? @$channels : $channels ) {

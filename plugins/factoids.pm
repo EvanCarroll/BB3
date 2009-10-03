@@ -5,6 +5,8 @@ use POE::Component::IRC::Common qw/l_irc/;
 use Text::Soundex qw/soundex/;
 use strict;
 
+use Data::Dumper;
+
 my $COPULA = join '|', qw/is are was isn't were being am/, "to be", "will be", "has been", "have been", "shall be", "can has", "wus liek", "iz liek", "used to be";
 my $COPULA_RE = qr/\b(?:$COPULA)\b/i;
 
@@ -52,7 +54,8 @@ sub postload {
 		author VARCHAR(100),
 		modified_time INTEGER,
 		soundex VARCHAR(4),
-		compose_macro CHAR(1) DEFAULT '0'
+		compose_macro CHAR(1) DEFAULT '0',
+		protected BOOLEAN DEFAULT '0'
 	)"; # Stupid lack of timestamp fields
 
 	$pm->create_table( $self->dbh, "factoid", $sql );
@@ -71,7 +74,7 @@ sub postload {
 # Need to add "what is foo?" support...
 sub command {
 	my( $self, $said, $pm ) = @_;
-
+	
 	return unless $said->{body} =~ /\S/; #Try to prevent "false positives"
 	
 	my $call_only = $said->{command_match} eq "call";
@@ -79,22 +82,22 @@ sub command {
 	my $subject = $said->{body};
 	
 	if( !$call_only and $subject =~ /\s+$COPULA_RE\s+/ ) { 
-		my @ret = $self->store_factoid( $said->{name}, $said->{body} ); 
+		my @ret = $self->store_factoid( $said ); 
 
 		return( 'handled', "Failed to store $said->{body}" )
-			unless @ret;
+		unless @ret;
 
 		return( 'handled', "Stored @ret" );
 	}
 	else {
-		my $commands_re = join '|', qw/search relearn learn forget revisions literal revert/;
+		my $commands_re = join '|', qw/search relearn learn forget revisions literal revert protect unprotect/;
 			$commands_re = qr/$commands_re/;
 
 		my $fact_string;
 
 		if( !$call_only && $subject =~ s/^\s*($commands_re)\s+// ) {
 			my( $cmd_name ) = "get_fact_$1";
-			$fact_string = $self->$cmd_name($subject, $said->{name});
+			$fact_string = $self->$cmd_name($subject, $said->{name}, $said);
 		}
 		else {
 			$fact_string = $self->get_fact( $pm, $said, $subject, $said->{name}, $call_only );
@@ -114,7 +117,7 @@ sub _clean_subject {
 	$subject =~ s/^\s+//;
 	$subject =~ s/\s+$//;
 	$subject =~ s/\s+/ /g;
-	$subject =~ s/[^\w\s]//g;
+#	$subject =~ s/[^\w\s]//g; #comment out to fix punct in factoids
 	$subject = lc $subject;
 
 	return $subject;
@@ -140,12 +143,14 @@ sub _clean_subject_func { # for parametrized macros
 }
 
 sub store_factoid {
-	my( $self, $author, $body ) = @_;
-
+	my( $self, $said) =@_;
+	my ($author, $body ) = ($said->{name}, $said->{body});
 
 	return unless $body =~ /^(?:\S+[:,])?\s*(.+?)\s+($COPULA_RE)\s+(.+)$/s;
 	my( $subject, $copula, $predicate ) = ($1,$2,$3);
 	my $compose_macro = 0;
+
+	return "Insufficient permissions for changing protected factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
 
 	if( $subject =~ s/^\s*\@?macro\b\s*// ) { $compose_macro = 1; }
 	elsif( $subject =~ s/^\s*\@?func\b\s*// ) { $compose_macro = 2; }
@@ -156,13 +161,13 @@ sub store_factoid {
 	}
 	
 	return unless
-		$self->_insert_factoid( $author, $subject, $copula, $predicate, $compose_macro );
+		$self->_insert_factoid( $author, $subject, $copula, $predicate, $compose_macro, $self->_db_get_protect($subject) );
 
 	return( $subject, $copula, $predicate );
 }
 
 sub _insert_factoid {
-	my( $self, $author, $subject, $copula, $predicate, $compose_macro ) = @_;
+	my( $self, $author, $subject, $copula, $predicate, $compose_macro, $protected ) = @_;
 	my $dbh = $self->dbh;
 
 	warn "Attempting to insert factoid: type $compose_macro";
@@ -181,8 +186,8 @@ sub _insert_factoid {
 	return unless $key =~ /\S/;
 
 	$dbh->do( "INSERT INTO factoid 
-		(original_subject,subject,copula,predicate,author,modified_time,soundex,compose_macro)
-		VALUES (?,?,?,?,?,?,?,?)",
+		(original_subject,subject,copula,predicate,author,modified_time,soundex,compose_macro,protected)
+		VALUES (?,?,?,?,?,?,?,?,?)",
 		undef,
 		$key,
 		$subject,
@@ -192,24 +197,57 @@ sub _insert_factoid {
 		time,
 		soundex($key),
 		$compose_macro || 0,
+		$protected || 0,
 	);
 
 	return 1;
 }
 
+sub get_fact_protect {
+	my( $self, $subject, $name, $said ) = @_;
+
+	warn "===TRYING TO PROTECT [$subject] [$name]\n";
+
+	#XXX check permissions here
+	return "Insufficient permissions for protecting factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
+
+	my $fact = $self->_db_get_fact( _clean_subject( $subject ), $name );
+	$self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 1 );
+
+	return "Protected $subject";
+}
+
+sub get_fact_unprotect {
+	my( $self, $subject, $name, $said ) = @_;
+
+	warn "===TRYING TO PROTECT [$subject] [$name]\n";
+
+	#XXX check permissions here
+	return "Insufficient permissions for protecting factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
+
+	my $fact = $self->_db_get_fact( _clean_subject( $subject ), $name );
+	$self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 0 );
+
+	return "Unprotected $subject";
+}
+
 sub get_fact_forget {
-	my( $self, $subject, $name ) = @_;
+	my( $self, $subject, $name, $said ) = @_;
 
 	warn "===TRYING TO FORGET [$subject] [$name]\n";
 
-	$self->_insert_factoid( $name, $subject, "is", " ", 0 );
+	#XXX check permissions here
+	return "Insufficient permissions for forgetting protected factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
+
+	$self->_insert_factoid( $name, $subject, "is", " ", 0, $self->_db_get_protect($subject) );
 
 	return "Forgot $subject";
 }
 
 sub _fact_literal_format {
 	my($r) = @_;
-	("","macro ","func ")[$r->{compose_macro}] . 
+	($r->{protected}?"P:" : "" ).
+                ("","macro ","func ")[$r->{compose_macro}] . 
 		"$r->{subject} $r->{copula} $r->{predicate}";
 }
 
@@ -218,7 +256,7 @@ sub get_fact_revisions {
 	my $dbh = $self->dbh;
 
 	my $revisions = $dbh->selectall_arrayref(
-		"SELECT factoid_id, subject, copula, predicate, author, compose_macro 
+		"SELECT factoid_id, subject, copula, predicate, author, compose_macro, protected 
 			FROM factoid
 			WHERE original_subject = ?
 			ORDER BY modified_time DESC
@@ -243,8 +281,11 @@ sub get_fact_literal {
 }
 
 sub get_fact_revert {
-	my( $self, $subject, $name ) = @_;
+	my( $self, $subject, $name, $said ) = @_;
 	my $dbh = $self->dbh;
+
+	#XXX check permissions here
+	return "Insufficient permissions for reverting protected factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
 
 	$subject =~ s/^\s*(\d+)\s*$//
 		or return "Failed to match revision format";
@@ -261,22 +302,24 @@ sub get_fact_revert {
 	return "Bad revision id" unless $fact_rev and $fact_rev->{subject}; # Make sure it's valid..
 
 	#                        subject, copula, predicate
-	$self->_insert_factoid( $name, @$fact_rev{qw"subject copula predicate compose_macro"});
+	$self->_insert_factoid( $name, @$fact_rev{qw"subject copula predicate compose_macro protected"});
 
 	return "Reverted $fact_rev->{subject} to revision $rev_id";
 }
 
 sub get_fact_learn {
-	my( $self, $body, $name ) = @_;
+	my( $self, $body, $name, $said ) = @_;
 
+	$body =~ s/^\s*learn\s+//;
+	my( $subject, $predicate ) = split /\s+as\s+/, $body, 2;
 
-		$body =~ s/^\s*learn\s+//;
-		my( $subject, $predicate ) = split /\s+as\s+/, $body, 2;
+	#XXX check permissions here
+	return "Insufficient permissions for changing protected factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
 
-		#my @ret = $self->store_factoid( $name, $said->{body} ); 
-		$self->_insert_factoid( $name, $subject, 'is', $predicate, 0 );
+	#my @ret = $self->store_factoid( $name, $said->{body} ); 
+	$self->_insert_factoid( $name, $subject, 'is', $predicate, 0 , $self->_db_get_protect($subject));
 
-		return "Stored $subject as $predicate";
+	return "Stored $subject as $predicate";
 }
 *get_fact_relearn = \&get_fact_learn; #Alias..
 
@@ -311,12 +354,55 @@ sub get_fact {
 	return $self->basic_get_fact( $pm, $said, $subject, $name, $call_only );
 }	
 
+sub _db_check_perm {
+        my ($self, $subj, $said) = @_;
+	my $isprot = $self->_db_get_protect($subj);
+
+	warn "Checking permissions of [$subj] for [$said->{name}]";
+	warn Dumper($said);
+
+	#always refuse to change factoids if not in one of my channels
+	return 0 if (!$said->{in_my_chan});
+
+	#if its not protected no need to check if they are op or root;
+	return 1 if (!$isprot); 
+
+	if ($isprot && ($said->{by_root} || $said->{by_chan_op}))
+	{
+		return 1;
+	}
+
+	#default case, $isprotect true; op or root isn't
+	return 0;
+}
+
+#get the status of the protection bit
+sub _db_get_protect {
+        my( $self, $subj ) = @_;
+
+	$subj = _clean_subject($subj,1);
+
+        my $dbh = $self->dbh;
+        my $prot = ($dbh->selectrow_array( "
+                        SELECT protected
+                        FROM factoid
+                        WHERE original_subject = ?
+                        ORDER BY factoid_id DESC
+                ",
+                undef,
+                $subj,
+        ))[0];
+
+        return $prot;
+}
+
+
 sub _db_get_fact {
 	my( $self, $subj, $name ) = @_;
 	
 	my $dbh = $self->dbh;
 	my $fact = $dbh->selectrow_hashref( "
-			SELECT factoid_id, subject, copula, predicate, author, modified_time, compose_macro
+			SELECT factoid_id, subject, copula, predicate, author, modified_time, compose_macro, protected
 			FROM factoid 
 			WHERE original_subject = ?
 			ORDER BY factoid_id DESC
@@ -360,7 +446,7 @@ sub basic_get_fact {
 			return $plugin->command($said,$pm);
 		}
 		else {
-			return "$fact->{subject} $fact->{copula} $fact->{predicate}";
+			return "$fact->{predicate}";
 		}
 	}
 	else { 

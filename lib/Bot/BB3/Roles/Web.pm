@@ -28,6 +28,8 @@ sub _start {
 	my( $self, $kernel ) = @_[OBJECT,KERNEL];
 	my $conf = $self->{conf};
 
+	warn '$conf{http}' . $conf->{http_plugin_port};
+
 	# Create it here so it acts as a child
 	$self->{server} = POE::Component::Server::SimpleHTTP->new(
 		PORT => $conf->{http_plugin_port},

@@ -307,7 +307,7 @@ sub _start_plugin_child {
 			warn "Got some output: [$results]\n";
 
 			if( $results !~ /\S/ and $said->{addressed} ) {
-				$results = "Couldn't match input.";
+				#$results = "Couldn't match input.";
 			}
 
 			#----
