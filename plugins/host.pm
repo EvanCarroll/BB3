@@ -25,6 +25,7 @@ my $foo=sub {
           		push @resu, $rr->string;
 		}
 		print "No $recordtype record found for $host" and return if (!@resu);
+		s/\s+/ / for @resu;
 		print join(" :: ", @resu) and return;
 	} 
 	else 
