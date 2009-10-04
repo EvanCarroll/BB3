@@ -87,7 +87,7 @@ sub command {
 		return( 'handled', "Failed to store $said->{body}" )
 		unless @ret;
 
-		return ('handled', "@ret") if ($ret[0] =~ /^insuff/);
+		return ('handled', "@ret") if ($ret[0] =~ /^insuff/i);
 		return( 'handled', "Stored @ret" );
 	}
 	else {
