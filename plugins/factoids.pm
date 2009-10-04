@@ -87,6 +87,7 @@ sub command {
 		return( 'handled', "Failed to store $said->{body}" )
 		unless @ret;
 
+		return ('handled', "@ret") if ($ret[0] =~ /^insuff/);
 		return( 'handled', "Stored @ret" );
 	}
 	else {
@@ -212,9 +213,17 @@ sub get_fact_protect {
 	return "Insufficient permissions for protecting factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
 
 	my $fact = $self->_db_get_fact( _clean_subject( $subject ), $name );
-	$self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 1 );
 
-	return "Protected $subject";
+	if (defined($fact->{predicate}))
+	{
+		$self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 1 );
+
+		return "Protected [$subject]";
+	}
+	else
+	{
+		return "Unable to protect nonexisting factoid [$subject]";
+	}
 }
 
 sub get_fact_unprotect {
@@ -223,12 +232,20 @@ sub get_fact_unprotect {
 	warn "===TRYING TO PROTECT [$subject] [$name]\n";
 
 	#XXX check permissions here
-	return "Insufficient permissions for protecting factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
+	return "Insufficient permissions for unprotecting factoid [$subject]" if (!$self->_db_check_perm($subject,$said));
 
 	my $fact = $self->_db_get_fact( _clean_subject( $subject ), $name );
-	$self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 0 );
-
-	return "Unprotected $subject";
+	
+	if (defined($fact->{predicate}))
+        {
+                $self->_insert_factoid( $name, $subject, $fact->{copula}, $fact->{predicate}, $fact->{compose_macro}, 0 );
+        
+                return "Unprotected [$subject]";
+        }
+        else
+        {
+                return "Unable to unprotect nonexisting factoid [$subject]";
+        }
 }
 
 sub get_fact_forget {
@@ -299,10 +316,12 @@ sub get_fact_revert {
 		$rev_id
 	);
 
+	my $protect = $self->_db_get_protect($fact_rev->{subject});
+
 	return "Bad revision id" unless $fact_rev and $fact_rev->{subject}; # Make sure it's valid..
 
 	#                        subject, copula, predicate
-	$self->_insert_factoid( $name, @$fact_rev{qw"subject copula predicate compose_macro protected"});
+	$self->_insert_factoid( $name, @$fact_rev{qw"subject copula predicate compose_macro"}, $protect);
 
 	return "Reverted $fact_rev->{subject} to revision $rev_id";
 }
