@@ -5,8 +5,10 @@ all_from 'lib/Bot/BB3.pm';
 author   q{Robert Grimes <buu@erxz.com>};
 license  'perl';
 
-requires 'POE';
 requires 'Parse::RecDescent';
+requires 'POE';
+requires 'POE::Component::Server::SimpleHTTP';
+requires 'POE::Component::IRC';
 
 build_requires 'Test::More';
 
