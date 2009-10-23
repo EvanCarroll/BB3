@@ -1,8 +1,7 @@
 package Bot::BB3::PluginWrapper;
 
-use strict;
+	use strict;
 
-{
 	package PluginWrapper::WrapSTDOUT;
 	
 	sub TIEHANDLE {
@@ -24,33 +23,41 @@ use strict;
 		return 1;
 	}
 
-}
+package Bot::BB3::PluginWrapper;
+	use strict;
+	use warnings;
 
-sub new {
-	my( $class, $name, $coderef ) = @_;
+	use Moose;
 
-	my $self = bless { coderef => $coderef, name => $name }, $class;
-	$self->{opts} = {
-		command => 1,
-	};
+	## not sure if these should be ro yet
+	has 'name' => ( isa => 'Str', is => 'rw' ); 
+	has 'coderef' => ( isa => 'CodeRef', is => 'rw' );
 
-	return $self;
-}
+	sub BUILDARGS {
+		my( $class, $name, $coderef ) = @_;
+		{ coderef => $coderef, name => $name };
+	}
 
-sub command {
-	my( $self, $said, $pm ) = @_;
-	my( $name ) = $self->{name};
+	has 'opts' => (
+		isa => 'HashRef'
+		, is => 'ro'
+		, default => sub { +{ command=>1 } }
+	);
 
-	my $output;
-	local *STDOUT;
-	tie *STDOUT, 'PluginWrapper::WrapSTDOUT', \$output;
+	sub command {
+		my( $self, $said, $pm ) = @_;
+		my( $name ) = $self->name;
 
-	$self->{coderef}->($said,$pm);
+		my $output;
+		local *STDOUT;
+		tie *STDOUT, 'PluginWrapper::WrapSTDOUT', \$output;
 
-	untie *STDOUT;
+		$self->coderef->($said,$pm);
 
-	return( 'handled', $output );
-}
+		untie *STDOUT;
+
+		return( 'handled', $output );
+	}
 
 
 1;
