@@ -9,6 +9,9 @@ requires 'Parse::RecDescent';
 requires 'POE';
 requires 'POE::Component::Server::SimpleHTTP';
 requires 'POE::Component::IRC';
+requires 'POE::Wheel::SocketFactory';
+
+recommends 'BSD::Resource';
 
 build_requires 'Test::More';
 
