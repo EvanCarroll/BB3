@@ -1,0 +1,9 @@
+var/
+inc/
+blib/
+pm_to_blib
+META.yml
+Makefile
+Makefile.old
+MANIFEST.SKIP
+
