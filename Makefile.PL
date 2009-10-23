@@ -5,6 +5,7 @@ all_from 'lib/Bot/BB3.pm';
 author   q{Robert Grimes <buu@erxz.com>};
 license  'perl';
 
+requires 'POE';
 requires 'Parse::RecDescent';
 
 build_requires 'Test::More';
