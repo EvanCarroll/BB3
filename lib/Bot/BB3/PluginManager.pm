@@ -1,4 +1,5 @@
 package Bot::BB3::PluginManager;
+use strict;
 
 use Bot::BB3::PluginWrapper;
 use Bot::BB3::Logger;
@@ -6,33 +7,63 @@ use POE;
 use Data::Dumper;
 use Text::Glob qw/match_glob/;
 use Memoize;
-use strict;
 
-sub new {
+use Moose;
+
+sub BUILDARGS {
 	my( $class, $main_conf, $plugin_conf, $bb3 ) = @_;
 
-	my $self = bless { 
-		main_conf => $main_conf,
-		plugin_conf => $plugin_conf,
-		bb3 => $bb3, # A bit hacky, only used for special commands from plugin at the moment
-	}, $class;
-
-	$self->{child_cache} = $self->create_cache;
-
-	$self->_load_plugins();
-
-	$self->{session} = POE::Session->create(
-		object_states => [
-			$self => [ qw/
-					_start execute_said handle_said_queue adjust_child_count
-					please_die child_flushed child_output child_err child_fail 
-					child_close child_die child_time_limit 
-				/ ]
-		]
-	);
-
-	return $self;
+	{
+		main_conf => $main_conf
+		, plugin_conf => $plugin_conf
+		, bb3 => $bb3
+	}
 }
+
+has [qw/main_conf plugin_conf/] => ( isa => 'Ref', is => 'ro' );
+
+has 'child_cache' => (
+	isa => 'Any'
+	, is => 'ro'
+	, default => sub {
+		my( $self ) = @_;
+
+		eval { require Cache::FastMmap; }
+			and return Cache::FastMmap->new( share_file => "var/cache-fastmmap", init_file => 1 );
+
+		eval { require Cache::Mmap; }
+			and return Cache::Mmap->new( "var/cache-mmap", { buckets => 89, bucketsize => 64 * 1024 } );
+
+		eval { require Cache::File; }
+			and return Cache::File->new( cache_root => 'var/cache-file', default_expires => '6000 sec' );
+		
+		die "Failed to properly create a cache object! Please install Cache::FastMmap, Cache::Mmap or Cache::File\n";
+	}
+);
+
+has 'bb3' => ( isa => 'Any', is => 'rw' );
+	
+has 'session' => (
+	isa => 'POE::Session'
+	, is => 'ro'
+	, lazy => 1
+
+	, default => sub {
+		my $self = shift;
+		POE::Session->create(
+			object_states => [
+				$self => [qw(
+					_start execute_said handle_said_queue adjust_child_count
+					please_die child_flushed child_output child_err child_fail
+					child_close child_die child_time_limit
+				)]
+			]
+		);
+	}
+
+);
+
+sub BUILD { +shift->_load_plugins() }
 
 #---------------------
 # Helpers and accessors
@@ -43,7 +74,7 @@ sub yield {
 
 	warn "YIELD CALLED: $event\n";
 
-	return POE::Kernel->post( $self->{session}, $event, @args );
+	return POE::Kernel->post( $self->session, $event, @args );
 }
 
 sub call {
@@ -51,15 +82,15 @@ sub call {
 
 	warn "CALL CALLED: $event\n";
 
-	return POE::Kernel->call( $self->{session}, $event, @args );
+	return POE::Kernel->call( $self->session, $event, @args );
 }
 
 sub get_main_conf {
-	return $_[0]->{main_conf};
+	return $_[0]->main_conf;
 }
 
 sub get_plugin_conf {
-	return $_[0]->{plugin_conf};
+	return $_[0]->plugin_conf;
 }
 
 sub get_plugins {
@@ -69,12 +100,13 @@ sub get_plugins {
 
 sub get_plugin {
 	my( $self, $name ) = @_;
+	warn $name;
 
 	# Loops are cool.
 	# O(n) but nobody cares because it's rarely used.
 	# HA HA THIS IS A LIE.
 	for( @{ $self->{plugins} } ) {
-		if( $name eq $_->{name} ) { 
+		if( $name eq $_->{name} ) {
 			return $_;
 		}
 
@@ -103,25 +135,10 @@ sub reload_plugins {
 
 	delete $self->{plugins};
 	$self->_load_plugins();
-	# In theory we just kill our children and they're 
+	# In theory we just kill our children and they're
 	# automatically respawned by the various child
 	# death handlers.
 	$self->kill_children();
-}
-
-sub create_cache {
-	my( $self ) = @_;
-
-	eval { require Cache::FastMmap; }
-		and return Cache::FastMmap->new( share_file => "var/cache-fastmmap", init_file => 1 );
-
-	eval { require Cache::Mmap; }
-		and return Cache::Mmap->new( "var/cache-mmap", { buckets => 89, bucketsize => 64 * 1024 } );
-
-	eval { require Cache::File; }
-		and return Cache::File->new( cache_root => 'var/cache-file', default_expires => '6000 sec' );
-	
-	die "Failed to properly create a cache object! Please install Cache::FastMmap, Cache::Mmap or Cache::File\n";
 }
 
 #---------------------
@@ -131,7 +148,7 @@ sub create_cache {
 sub _load_plugins {
 	my( $self ) = @_;
 
-	my $plugin_dir = $self->{main_conf}->{plugin_dir} || 'plugins';
+	my $plugin_dir = $self->main_conf->{plugin_dir} || 'plugins';
 	
 	opendir my $dh, $plugin_dir or die "Failed to open plugin dir: $plugin_dir: $!\n";
 
@@ -139,8 +156,8 @@ sub _load_plugins {
 		next unless $file =~ /\.pm$/;
 
 		local $@;
-		local *DATA; # Prevent previous file's __DATA__ 
-		             # sections being read for this new file.
+		local *DATA; # Prevent previous file's __DATA__
+		# sections being read for this new file.
 		my $plugin_return = do "$plugin_dir/$file";
 		if( not $plugin_return or $@ ) {
 			error "Failed to load plugin: $plugin_dir/$file $@\n";
@@ -160,7 +177,7 @@ sub _load_plugins {
 			eval {
 				$plugin_obj = $plugin_return->new();
 
-				# Fo' Realz. 
+				# Fo' Realz.
 				# strict won't let me abuse typeglob symbolic refs properly!
 				no strict;
 				if( *{"${plugin_return}::DATA"}{IO} ) {
@@ -238,14 +255,14 @@ sub _pre_build_plugin_chain {
 sub _pre_load_default_plugin {
 	my( $self ) = @_;
 
-	if( my $default = $self->{main_conf}->{plugin_manager}->{default_plugin} ) {
+	if( my $default = $self->main_conf->{plugin_manager}->{default_plugin} ) {
 		if( not ref $default ) { $default = [$default] } # Clean up Config::General randomness
 
 		my @default_chain;
 		for( @$default ) {
 			my @plugins = split " ", $_; #I'm not really sure what the format is. Also, magic split.
 
-			for( @plugins ) { 
+			for( @plugins ) {
 				my $plugin = $self->get_plugin( $_ );
 				if( $plugin ) { push @default_chain, $plugin }
 			}
@@ -283,7 +300,7 @@ sub _start_plugin_child {
 
 	while( 1 ) {
 		my $stream;
-		sysread STDIN, $stream, 4096 
+		sysread STDIN, $stream, 4096
 			or die "Child $$ failed to read: $!\n";
 
 		my $filter_refs = $filter->get( [$stream] );
@@ -299,7 +316,7 @@ sub _start_plugin_child {
 			# Only add the default if we're being addressed
 			if( $said->{addressed} ) {
 				push @{ $chain->[1] }, @{ $self->{default_plugin_chain} }; # Append default plugins to the command section
-																																	 # of the plugin chain
+																																	# of the plugin chain
 			}
 			
 			my $results = $self->_execute_plugin_chain( $said, $chain );
@@ -321,7 +338,7 @@ sub _start_plugin_child {
 			#}
 		}
 
-		if( $handled_counter > $self->{main_conf}->{child_handle_count} ) {
+		if( $handled_counter > $self->main_conf->{child_handle_count} ) {
 			last;
 		}
 	}
@@ -338,7 +355,7 @@ sub _create_plugin_chain {
 
 	my( $pre, $post ) = @{$pre_built_chains}{ qw/pre_process post_process/ };
 	my $handlers = $self->_filter_plugin_list( $said, $pre_built_chains->{ handlers } );
-	;		
+	;
 	#---
 	# Parse said/commands
 	#---
@@ -371,7 +388,7 @@ sub _parse_for_commands {
 				$said->{recommended_args} = [ split /\s+/, $args ];
 				$said->{command_match} = $found_command;
 				return $filter_check;
-			} 
+			}
 	}
 
 	return [];
@@ -382,7 +399,7 @@ sub _filter_plugin_list {
 
 	my @chain;
 	for( @$plugins ) {
-		my $conf = $self->plugin_conf( $_->{name}, $said->{server}, $said->{channel} );
+		my $conf = $self->plugin_conf_wtf( $_->{name}, $said->{server}, $said->{channel} );
 
 		# Explicitly skip addressed checks for special channels
 		if( $said->{channel} !~ /^\*/ ) {
@@ -402,7 +419,7 @@ sub _execute_plugin_chain {
 	my( $self, $said, $chain ) = @_;
 	my( $pre, $commands, $handlers, $post ) = @$chain;
 
-	for( @$pre ) { 
+	for( @$pre ) {
 		$_->pre_process( $said, $self );
 	}
 
@@ -466,7 +483,7 @@ sub handle_said_queue {
 	while( defined( my $said = shift @$queue ) ) {
 		warn "Queuing $said\n";
 
-		for( @$children ) { 
+		for( @$children ) {
 			warn "Checking ", $_->{wheel}->PID, ": $_->{queue}";
 			if( not $_->{queue} ) {
 				$_->{queue} = $said;
@@ -479,7 +496,7 @@ sub handle_said_queue {
 		}
 	}
 
-	if( $queue and @$queue ) { 
+	if( $queue and @$queue ) {
 		$kernel->delay( handle_said_queue => 2 );
 	}
 }
@@ -510,7 +527,7 @@ sub _spawn_child {
 			queue => 0,
 		};
 		$self->{children}->{ $child->ID } = $child_struct;
-		$self->{children_by_pid}->{ $child->PID } = $child->ID; 
+		$self->{children_by_pid}->{ $child->PID } = $child->ID;
 
 		warn "Created child: ", $child->ID;
 
@@ -535,9 +552,9 @@ sub child_die {
 
 	# If the dead child had a queue ready then we requeue to make sure it
 	# gets handled eventually.
-	# If the $said has been tried a couple of times it's probably causing 
+	# If the $said has been tried a couple of times it's probably causing
 	# the child to die some how, so we skip it.
-	if( $child->{queue} and $child->{queue}->{attempts} < 2 ) { 
+	if( $child->{queue} and $child->{queue}->{attempts} < 2 ) {
 		#TODO methodize! (unshift and handle)
 		unshift @{ $self->{said_queue} }, $child->{queue};
 		$self->yield( 'handle_said_queue' );
@@ -557,7 +574,7 @@ sub get_children {
 #---------------------------------------------
 sub _start {
 	my( $self, $kernel ) = @_[OBJECT,KERNEL];
-	my $start_child_count = $self->{main_conf}->{start_plugin_children};
+	my $start_child_count = $self->main_conf->{start_plugin_children};
 
 	for( 1 .. $start_child_count ) {
 		$self->_spawn_child();
@@ -609,7 +626,7 @@ sub child_output {
 				$self->$name( @$_ );
 			}
 			elsif( $name =~ s/^bb3_// ) {
-				$self->{bb3}->$name( @$_ );
+				$self->bb3->$name( @$_ );
 			}
 		}
 	}
@@ -694,7 +711,7 @@ sub create_table {
 		local $@;
 		eval {
 			$dbh->do( $create_table_sql );
-		}; 
+		};
 
 		# Stupid threading issues.
 		# All of the children try to do this at the same time.
@@ -719,10 +736,10 @@ sub create_table {
 {
 	my %plugin_conf_cache;
 
-	sub plugin_conf
+	sub plugin_conf_wtf
 	{
 		my( $self, $command, $server, $channel ) = @_;
-		my $plugin_conf = $self->{plugin_conf};
+		my $plugin_conf = $self->plugin_conf;
 
 		if( local $_ = $plugin_conf_cache{$server}->{$channel}->{$command} ) {
 			return $_;
@@ -733,22 +750,22 @@ sub create_table {
 		{
 			my $glob = $_->[1];
 			if( match_glob( lc $glob, lc $server ) )
-			{    
+			{
 				for( @{ $_->[2] } )
-				{    
+				{
 					if( match_glob( lc $_->[1], lc $channel ) )
 					{
 						for( @{ $_->[2] } )
 						{
-							if( match_glob( lc $_->[1], lc $command ) )  
+							if( match_glob( lc $_->[1], lc $command ) )
 							{
 								my $new_opts = $_->[2];
 								$opts = { %$opts, %$new_opts };
 							}
 						}
 					}
-				}    
-			}    
+				}
+			}
 		}
 
 		# Convert 'false' type strings into perl false values.
@@ -757,9 +774,9 @@ sub create_table {
 			my $v = $opts->{$_};
 
 			if( $v eq 'false' or $v eq 'null' or $v eq 'off' or $v eq 0 )
-			{    
+			{
 				$opts->{$_} = undef;
-			}    
+			}
 		}
 
 		$plugin_conf_cache{$server}->{$channel}->{$command} = $opts;
