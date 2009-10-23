@@ -2,7 +2,7 @@ use Config::General;
 
 sub {
 	my( $said, $pm ) = @_;
-	my $main_conf = $pm->get_main_conf;
+	my $main_conf = $pm->main_conf;
 
 	my $o = Config::General->new(
 			-ConfigFile => $file,

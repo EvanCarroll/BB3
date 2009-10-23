@@ -3,7 +3,7 @@ use Data::Dumper;
 
 sub {
 	my( $said, $pm ) = @_;
-	my $conf = $pm->get_main_conf;
+	my $conf = $pm->main_conf;
 	
 	my( $path, $value ) = split " ", $said->{body}, 2;
 

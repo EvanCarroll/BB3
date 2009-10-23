@@ -5,7 +5,7 @@ sub {
 
 	my $id = Bot::BB3::Roles::PasteBot->insert_paste( $said->{name}, "IRC Insert", $said->{body} );
 
-	my $main_conf = $pm->get_main_conf;
+	my $main_conf = $pm->main_conf;
 	my $url = $main_conf->{roles}->{pastebot}->{alias_url};
 
 	print "Added new paste as $id.";

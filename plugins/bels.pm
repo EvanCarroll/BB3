@@ -6,7 +6,7 @@ sub {
 	my($said, $pm) = @_;
 	my($arg) = @{$said->{"recommended_args"}};
 	
-	my $quotedir = $pm->get_main_conf->{be}->{quotes_dir} || "/dev/null";
+	my $quotedir = $pm->main_conf->{be}->{quotes_dir} || "/dev/null";
 	-d $quotedir or 
 		die "error: quote directory does not exist, check etc/bb3.conf";
 

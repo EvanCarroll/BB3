@@ -85,10 +85,6 @@ sub call {
 	return POE::Kernel->call( $self->session, $event, @args );
 }
 
-sub get_main_conf {
-	return $_[0]->main_conf;
-}
-
 sub get_plugin_conf {
 	return $_[0]->plugin_conf;
 }
