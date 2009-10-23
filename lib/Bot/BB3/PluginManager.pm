@@ -168,7 +168,8 @@ sub _load_plugins {
 			$plugin_obj = Bot::BB3::PluginWrapper->new( $name, $plugin_return );
 			$help_text = join '', <DATA>;
 		}
-		elsif( ref $plugin_return eq '' ) { #String representing package name, I hope
+		#String representing package name, I hope
+		elsif( ref $plugin_return eq '' ) {
 			local $@;
 			eval {
 				$plugin_obj = $plugin_return->new();
