@@ -4,19 +4,10 @@ use DBI;
 use DBD::SQLite;
 use strict;
 
-sub new {
-	my( $class ) = @_;
-	my $self = bless {}, $class;
-	
-	$self->{name} = 'tell';
-	$self->{opts} = {
-		command => 1,
-		handler => 1,
-		
-	};
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	return $self;
-}
+has '+name' => ( default => 'tell' );
 
 sub dbh {
 	my( $self ) = @_;

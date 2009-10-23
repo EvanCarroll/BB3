@@ -3,17 +3,10 @@ use POE::Component::IRC::Common qw/l_irc/;
 use DBD::SQLite;
 use strict;
 
-sub new {
-	my( $class ) = @_;
-	my $self = bless {}, $class;
-	$self->{name} = "seen";
-	$self->{opts} = {
-		command => 1,
-		handler => 1,
-	};
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	return $self;
-}
+has '+name' => ( default => 'seen' );
 
 sub dbh {
 	my( $self ) = @_;

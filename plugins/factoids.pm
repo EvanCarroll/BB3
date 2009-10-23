@@ -8,19 +8,13 @@ use strict;
 my $COPULA = join '|', qw/is are was isn't were being am/, "to be", "will be", "has been", "have been", "shall be", "can has", "wus liek", "iz liek", "used to be";
 my $COPULA_RE = qr/\b(?:$COPULA)\b/i;
 
-sub new {
-	my( $class ) = @_;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	my $self = bless {}, $class;
-	$self->{name} = 'factoids'; # Shouldn't matter since we aren't a command
-	$self->{opts} = {
-		command => 1,
-		#handler => 1,
-	};
-	$self->{aliases} = [ qw/fact call/ ];
-
-	return $self;
-}
+has '+name' => ( default => 'factoids' );
+has '+aliases' => (
+	default => sub { [qw/ fact call /]}
+);
 
 sub dbh { 
 	my( $self ) = @_;

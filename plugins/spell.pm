@@ -1,19 +1,12 @@
 package Bot::BB3::Plugin::Spell;
-use Text::Aspell;
 use strict;
 
-sub new {
-	my( $class ) = @_;
+use Text::Aspell;
 
-	my $self = bless {}, $class;
-	$self->{name} = 'spell';
-	$self->{opts} = {
-		command => 1,
-		handler => 1,
-	};
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	return $self;
-}
+has '+name' => ( default => 'spell' );
 
 sub handle {
 	my( $self, $said, $pm ) = @_;

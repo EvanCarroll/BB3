@@ -1,17 +1,10 @@
 package Bot::BB3::Plugin::More;
 use strict;
 
-sub new {
-	my( $class ) = @_;
-	my $self = bless {}, $class;
-	$self->{name} = 'more';
-	$self->{opts} = {
-		command => 1,
-		post_process => 1,
-	};
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	return $self;
-}
+has '+name' => ( default => 'more' );
 
 sub initialize {
 	my( $self, $pm, $cache ) = @_;

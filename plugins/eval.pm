@@ -1,25 +1,21 @@
-# eval plugin for buubot3
 package Bot::BB3::Plugin::Eval;
+use strict;
+use warnings;
 
-package Bot::BB3::Plugin::Eval;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
 use POE::Filter::Reference;
 use IO::Socket::INET;
 use Data::Dumper;
-use strict;
 
-sub new {
-	my( $class ) = @_;
-
-	my $self = bless {}, $class;
-	$self->{name} = 'eval';
-	$self->{opts} = {
-		command => 1,
-	};
-	$self->{aliases} = [ qw/jseval jeval phpeval pleval perleval deparse k20eval rbeval pyeval luaeval/ ];
-
-	return $self;
-}
+has '+name' => ( default => 'eval' );
+has '+aliases' => (
+	default => sub { [qw/
+		jseval jeval phpeval pleval perleval
+		deparse k20eval rbeval pyeval luaeval
+	/]}
+);
 
 sub command {
 	my( $self, $said, $pm ) = @_;

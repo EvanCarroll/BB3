@@ -1,11 +1,15 @@
 package Bot::BB3::Plugin::IMDB;
+use strict;
 
 BEGIN { delete $INC{"IMDB.pm"}; } # Force a reload, sigh.
 use IMDB;
 use Storable qw/freeze thaw/;
-use strict;
 
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
+has '+name' => ( default => 'imdb' );
+	
 	my %commands = (
 		quote => sub {
 			my $obj = shift;
@@ -43,16 +47,6 @@ use strict;
 			return $obj->{data}{$type}
 		};
 	}
-	
-sub new {
-	my( $class ) = @_;
-
-	my $self = bless {}, $class;
-	$self->{name} = "imdb";
-	$self->{opts}->{command} = 1;
-
-	return $self;
-}
 
 sub initialize {
 	my( $self, $pm, $cache ) = @_;

@@ -1,18 +1,11 @@
 package Bot::BB3::Plugin::CacheCheck;
 use strict;
 
-sub new {
-	my( $class ) = @_;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	my $self = bless {}, $class;
+has '+name' => ( default => 'cache_check' );
 
-	$self->{name} = "cache_check";
-	$self->{opts} = {
-		command => 1,
-	};
-
-	return $self;
-}
 sub initialize {
 	my( $self, $pm, $cache ) = @_;
 

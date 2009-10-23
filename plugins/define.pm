@@ -1,17 +1,13 @@
 package Bot::BB3::Plugin::Define;
+use strict;
+use warnings;
+
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
+
+has '+name' => ( default => 'define' );
+
 use Net::Dict;
-
-sub new {
-	my( $class ) = @_;
-
-	my $self = bless {}, $class;
-	$self->{name} = 'define';
-	$self->{opts} = {
-		command => 1,
-	};
-
-	return $self;
-}
 
 sub command {
 	my( $self, $said, $pm ) = @_;

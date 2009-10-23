@@ -1,22 +1,16 @@
 package Bot::BB3::Plugin::Pastebin;
-
-use LWP::Simple qw/get/;
-use IPC::Open2;
 use warnings;
 use strict;
 
+use LWP::Simple qw/get/;
+use IPC::Open2;
+
 my %seen;
 
-sub new {
-	my( $class ) = @_;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	my $self = bless {}, $class;
-	$self->{name} = 'pastebin';
-	$self->{opts}->{handler} = 1;
-
-	return $self;
-}
-
+has '+name' => ( default => 'pastebin' );
 
 sub handle
 {

@@ -3,15 +3,10 @@ use POE::Component::IRC::Common qw/l_irc/;
 use DBI;
 use DBD::SQLite;
 
-sub new {
-	my( $class ) = @_;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	my $self = bless {}, $class;
-	$self->{name} = "karma_modify"; # This shouldn't be necessary
-	$self->{opts}->{handler} = 1;
-
-	return $self;
-}
+has '+name' => ( default => 'karma_modify' );
 
 sub dbh { 
 	my( $self ) = @_;

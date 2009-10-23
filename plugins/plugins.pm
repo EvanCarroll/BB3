@@ -1,13 +1,10 @@
 package Bot::BB3::Plugin::Plugins;
 use strict;
-sub new {
-	my($class) = @_;
-	my $self = bless {}, $class;
-	$self->{"name"} = "plugins";
-	$self->{"opts"}->{"command"} = 1;
 
-	return $self;
-}
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
+
+has '+name' => ( default => 'plugins' );
 
 sub command {
 	my($self, $said, $manager) = @_;

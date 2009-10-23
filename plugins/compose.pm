@@ -1,16 +1,10 @@
 package Bot::BB3::Plugin::Compose;
 use strict;
 
-sub new {
-	my( $class ) = @_;
-	my $self = bless {}, $class;
-	$self->{name} = 'compose';
-	$self->{opts} = {
-		command => 1,
-	};
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
 
-	return $self;
-}
+has '+name' => ( default => 'compose' );
 
 sub command {
 	my( $self, $said, $pm ) = @_;
