@@ -1,8 +1,6 @@
-package Bot::BB3::PluginWrapper;
-
+package Bot::BB3::PluginWrapper::WrapSTDOUT;
+	
 	use strict;
-
-	package PluginWrapper::WrapSTDOUT;
 	
 	sub TIEHANDLE {
 		my( $class, $buffer_ref ) = @_;
@@ -50,7 +48,7 @@ package Bot::BB3::PluginWrapper;
 
 		my $output;
 		local *STDOUT;
-		tie *STDOUT, 'PluginWrapper::WrapSTDOUT', \$output;
+		tie *STDOUT, 'Bot::BB3::PluginWrapper::WrapSTDOUT', \$output;
 
 		$self->coderef->($said,$pm);
 
