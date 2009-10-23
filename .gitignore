@@ -6,4 +6,4 @@ META.yml
 Makefile
 Makefile.old
 MANIFEST.SKIP
-
+*\.swp
