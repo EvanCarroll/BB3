@@ -15,5 +15,7 @@ sub command {
 	print "Changing the topic to $said->{body} in $said->{channel}";
 }
 
+1;
+
 __DATA__
 Attempts to change the topic in the current channel. Typically requires op/superuser permissions for the user as well as operator permissions for the bot.

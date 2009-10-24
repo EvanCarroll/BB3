@@ -15,6 +15,8 @@ sub command {
 	print "Attempting to reload plugins...";
 }
 
+1;
+
 __DATA__
 
 Attempts to reload all of the plugins in the plugin directory. Has the effect of reloading any changed plugins or adding any new ones that have been added. Typically root only.

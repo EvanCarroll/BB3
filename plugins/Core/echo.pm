@@ -7,5 +7,7 @@ with 'Bot::BB3::REALRoles::Plugin';
 
 sub command { print $_[1]->{body} }
 
+1;
+
 __DATA__
 Echo just prints its argument verbatim.

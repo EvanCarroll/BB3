@@ -13,5 +13,7 @@ sub command {
 	print "Attempting to restart..";
 }
 
+1;
+
 __DATA__
 restart. Attempts to rexecute the bot in the exact manner it was first execute. This has the effect of reloading all config files and associated plugins. Typically root only.

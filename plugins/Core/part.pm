@@ -15,5 +15,7 @@ sub command {
 	print "Attempting to leave: @{$said->{recommended_args}} ";
 }
 
+1;
+
 __DATA__
 Attempts to leave a list of channels. Syntax, part #foo #bar #baz. Note, does no sanity checking. Typically requires op or superuser.
