@@ -1,5 +1,12 @@
-sub {
-	my( $said, $pm ) = @_;
+package Bot::BB3::Plugin::Core::Topic;
+use strict;
+use warnings;
+
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
+
+sub command {
+	my( $self, $said, $pm ) = @_;
 
 	push @{ $said->{special_commands} }, [
 		pci_topic => $said->{channel} => $said->{body}

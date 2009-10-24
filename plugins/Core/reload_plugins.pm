@@ -1,6 +1,12 @@
+package Bot::BB3::Plugin::Core::Reload_Plugins;
+use strict;
+use warnings;
 
-sub {
-	my( $said, $pm ) = @_;
+use Moose;
+with 'Bot::BB3::REALRoles::Plugin';
+
+sub command {
+	my( $self, $said, $pm ) = @_;
 
 	push @{ $said->{special_commands} },
 		[ pm_reload_plugins => 1 ]
