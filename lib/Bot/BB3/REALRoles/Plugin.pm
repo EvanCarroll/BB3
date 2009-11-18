@@ -17,4 +17,34 @@ has 'opts' => (
 	}
 );
 
+sub create_table {
+	my( $self, $dbh, $table_name, $create_table_sql ) = @_;
+
+	local $@;
+	eval {
+		$dbh->do("SELECT * FROM $table_name LIMIT 1");
+	};
+
+	if( $@ =~ /no such table/ ) {
+		# Race Conditions could cause two threads to create this table.
+		local $@;
+		eval {
+			$dbh->do( $create_table_sql );
+		};
+
+		# Stupid threading issues.
+		# All of the children try to do this at the same time.
+		# Suppress most warnings.
+		if( $@ and $@ !~ /already exists/ and $@ !~ /database schema has changed/ ) {
+			die "Failed to create table: $@\n";
+		}
+
+		#Success!
+	}
+	elsif( $@ ) {
+		die "Failed to access dbh to test table: $@";
+		warn "Caller: ", join " ", map "[$_]", caller;
+	}
+}
+
 1;

@@ -144,12 +144,14 @@ sub reload_plugins {
 sub _load_plugins {
 	my( $self ) = @_;
 
-	my $plugin_dir = $self->main_conf->{plugin_dir} || 'plugins';
+	my $plugin_dir = 'plugins/Core';
+	#my $plugin_dir = $self->main_conf->{plugin_dir} || 'plugins/Core';
 	
 	opendir my $dh, $plugin_dir or die "Failed to open plugin dir: $plugin_dir: $!\n";
 
 	while( defined( my $file = readdir $dh ) ) {
 		next unless $file =~ /\.pm$/;
+		print "\n\n\n\n\n$file\n\n\n\n\n\n";
 
 		local $@;
 		local *DATA; # Prevent previous file's __DATA__
@@ -160,36 +162,25 @@ sub _load_plugins {
 			next;
 		}
 
-		(my $name = $file) =~ s/\.pm$//;
-		my $plugin_obj;
-		my $help_text;
-
-		if( ref $plugin_return eq 'CODE' ) {
-			$plugin_obj = Bot::BB3::PluginWrapper->new( $name, $plugin_return );
-			$help_text = join '', <DATA>;
-		}
-		#String representing package name, I hope
-		elsif( ref $plugin_return eq '' ) {
-			local $@;
-			eval {
-				$plugin_obj = $plugin_return->new();
-
-				# Fo' Realz.
-				# strict won't let me abuse typeglob symbolic refs properly!
-				no strict;
-				if( *{"${plugin_return}::DATA"}{IO} ) {
-					$help_text = join '', readline *{"${plugin_return}::DATA"};
-				}
-			};
-
-			if( not $plugin_obj or $@ ) {
-				warn "Failed to instantiate $plugin_return from $plugin_dir/$file $@\n";
-				next;
+		my ($plugin_obj, $help_text);
+		local $@;
+		eval {
+			(my $name = $file) =~ s/\.pm$//;
+			
+			my $pkg = "Bot::BB3::Plugin::Core::" . ucfirst($name);
+			$plugin_obj = $pkg->new({ name => $name });
+		
+			# Fo' Realz.
+			# strict won't let me abuse typeglob symbolic refs properly!
+			no strict;
+			if( *{"${plugin_return}::DATA"}{IO} ) {
+				$help_text = join '', readline *{"${plugin_return}::DATA"};
 			}
-		}
+		};
 
-		if( not $plugin_obj ) {
-			warn "Failed to get a plugin_obj from $plugin_dir/$file for unknown reasons $plugin_return.\n";
+		if( not $plugin_obj or $@ ) {
+			warn "Failed to get a plugin_obj from $plugin_dir/$file for unknown reasons $plugin_return. $@\n";
+				use XXX; YYY [ $plugin_obj, $file ];
 			next;
 		}
 
@@ -201,13 +192,6 @@ sub _load_plugins {
 	$self->_pre_build_plugin_chain();
 	$self->_pre_load_default_plugin();
 	
-	for my $plugin ( @{ $self->{plugins} } ) {
-		local $@;
-		$plugin->can("postload") and
-			eval { $plugin->postload($self) };
-		if( $@ ) { warn "$plugin->{name}: postload failed: $@"; }
-	}
-
 	return scalar @{ $self->{plugins} };
 }
 
@@ -688,43 +672,6 @@ sub please_die {
 
 	$self->kill_children();
 }
-
-#-------------------
-# Slightly less random cruft.
-# Used by plugins. Move to common
-# plugin base class?
-#-------------------
-
-sub create_table {
-	my( $self, $dbh, $table_name, $create_table_sql ) = @_;
-
-	local $@;
-	eval {
-		$dbh->do("SELECT * FROM $table_name LIMIT 1");
-	};
-
-	if( $@ =~ /no such table/ ) {
-		# Race Conditions could cause two threads to create this table.
-		local $@;
-		eval {
-			$dbh->do( $create_table_sql );
-		};
-
-		# Stupid threading issues.
-		# All of the children try to do this at the same time.
-		# Suppress most warnings.
-		if( $@ and $@ !~ /already exists/ and $@ !~ /database schema has changed/ ) {
-			error "Failed to create table: $@\n";
-		}
-
-		#Success!
-	}
-	elsif( $@ ) {
-		error "Failed to access dbh to test table: $@";
-		warn "Caller: ", join " ", map "[$_]", caller;
-	}
-}
-
 
 #-------------------------------------------
 # Random cruft

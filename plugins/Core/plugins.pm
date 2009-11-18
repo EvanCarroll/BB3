@@ -5,8 +5,6 @@ use warnings;
 use Moose;
 with 'Bot::BB3::REALRoles::Plugin';
 
-has '+name' => ( default => 'plugins' );
-
 sub command {
 	my ($self, $said, $manager) = @_;
 	my $output = join(" ", sort map { $_->name } @{$manager->get_plugins});
